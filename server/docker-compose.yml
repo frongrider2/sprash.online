@@ -4,7 +4,7 @@ services:
   prediction-server:
     build:
       context: .
-      dockerfile: DockerFile
+      dockerfile: Dockerfile
     container_name: prediction-system-server
     restart: unless-stopped
     env_file:

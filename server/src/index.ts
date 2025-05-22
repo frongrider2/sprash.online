@@ -14,7 +14,7 @@ import 'dotenv/config';
 const PYTH_PRICE_SERVICE_URL = process.env.PYTH_PRICE_SERVICE_URL as string;
 const SUI_USDT_PRICE_ID = process.env.SUI_USDT_PRICE_ID as string;
 const RPC_URL = process.env.RPC_URL as string;
-const ROUND_INTERVAL = 300 * 1000; // ms;
+const ROUND_INTERVAL = 60 * 1000; // 5 minutes;
 
 const clockObj = '0x6';
 
@@ -133,7 +133,7 @@ const lockGenesis = async () => {
       [SUI_USDT_PRICE_ID]
     );
 
-    console.log(priceInfoObjectIds);
+    // console.log(priceInfoObjectIds);
 
     tx.moveCall({
       target: `${PACKAGE_ID}::dashboard::lock_genesis`,
@@ -177,6 +177,8 @@ const lockGenesis = async () => {
 };
 
 const executeRound = async () => {
+  const now = Date.now();
+  console.log(`${now} execute round`);
   try {
     const tx = new Transaction();
 
@@ -435,7 +437,7 @@ const checkTreasury = async () => {
       predictionSystem.data?.content?.dataType === 'moveObject'
     ) {
       const fields = (predictionSystem.data.content as any).fields as any;
-      console.log(fields);
+      // console.log(fields);
       if (fields) {
         const treasuryAmount = fields.treasury_amount;
 
@@ -451,27 +453,81 @@ const checkTreasury = async () => {
   }
 };
 
+const checkStatus = async () => {
+  try {
+    const predictionSystem = await suiClient.getObject({
+      id: PREDICTION_SYSTEM_ID,
+      options: {
+        showContent: true,
+        showType: true,
+      },
+    });
+
+    if (
+      predictionSystem.data &&
+      predictionSystem.data?.content &&
+      predictionSystem.data?.content?.dataType === 'moveObject'
+    ) {
+      const fields = (predictionSystem.data.content as any).fields as any;
+      // console.log(fields);
+      if (fields) {
+        const genesis_start = fields.genesis_start;
+        const genesis_lock = fields.genesis_lock;
+
+        return {
+          isSuccess: true,
+          genesis_start,
+          genesis_lock,
+        };
+      }
+    }
+  } catch (error) {
+    throw error;
+  }
+};
+
 const runPredictionSystem = async () => {
+  const status = await checkStatus();
+  if (!status) {
+    return;
+  }
+
+  if (!status.isSuccess) {
+    return;
+  }
+
+  console.log({ genesis_start: status.genesis_start });
+  console.log({ genesis_lock: status.genesis_lock });
+
   try {
     // Start genesis round
     console.log('Starting prediction system...');
-    await startGenesis();
+    if (!status.genesis_start && !status.genesis_lock) {
+      startGenesis();
+    }
 
     // Wait for first round interval
     console.log(`Waiting ${ROUND_INTERVAL}ms before locking genesis round...`);
-    await new Promise((resolve) => setTimeout(resolve, ROUND_INTERVAL));
 
     // Lock genesis round
-    console.log('Locking genesis round...');
-    await lockGenesis();
+    setTimeout(() => {
+      console.log('Locking genesis round...');
+      if (!status.genesis_start && !status.genesis_lock) {
+        lockGenesis();
+      }
+    }, ROUND_INTERVAL + 200);
 
-    await new Promise((resolve) => setTimeout(resolve, ROUND_INTERVAL + 1000));
+    if (!status.genesis_start && !status.genesis_lock) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, 2 * ROUND_INTERVAL + 1000)
+      );
+    }
 
     // Start continuous execution loop
     while (true) {
       try {
         console.log('Executing round...');
-        executeRound();
+        await executeRound();
         setTimeout(() => {
           checkTreasury();
         }, 1000);

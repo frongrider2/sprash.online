@@ -11,7 +11,7 @@ const NavLinkItem = ({ to, label, exact = false }: NavLinkItemProps) => {
   const location = useLocation();
   const isActive = exact
     ? location.pathname === to
-    : location.pathname.startsWith(to);
+    : to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
 
   return (
     <Link

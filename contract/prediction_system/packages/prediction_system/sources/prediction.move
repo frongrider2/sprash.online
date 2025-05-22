@@ -18,8 +18,8 @@ use sui::vec_map::{Self, VecMap};
 // ===== Constants =====
 const MIN_BET_AMOUNT: u64 = 1_000_000; // 0.001 SUI
 const MAX_BET_AMOUNT: u64 = 100_000_000_000; // 100 SUI
-const ROUND_INTERVAL: u64 = 300 * 1000; // 5 minutes in seconds
-const BUFFER_SECONDS: u64 = 10 * 1000; // 10 seconds buffer for oracle updates
+const ROUND_INTERVAL: u64 = 60 * 1000; // 1 minute in seconds
+const BUFFER_SECONDS: u64 = 30 * 1000; // 30 seconds buffer for oracle updates
 
 // ===== Errors =====
 const EInvalidOTW: u64 = 0;

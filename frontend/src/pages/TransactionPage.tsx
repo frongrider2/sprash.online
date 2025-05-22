@@ -1,11 +1,13 @@
+import PredictionClaim from '@/components/prediction/PredictionClaim';
 import { useNetworkVariable } from '@/config/networkConfig';
+import { useRefreshState } from '@/states/refresh/reducer';
 import {
   useCurrentAccount,
   useCurrentWallet,
   useSuiClient,
 } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 interface Props extends SimpleComponent {}
@@ -19,6 +21,9 @@ function TransactionPage(props: Props) {
 
   const predictionSystemId = useNetworkVariable('predictionSystemId');
   const packageId = useNetworkVariable('packageId');
+
+  const [userRounds, setUserRounds] = useState<number[]>([]);
+  const refresh = useRefreshState();
 
   async function fetchUserRounds() {
     const roundLength = await getUserRoundLength();
@@ -56,7 +61,8 @@ function TransactionPage(props: Props) {
       }
     }
 
-    console.log({ allValues });
+    const uniqueValues = [...new Set(allValues)];
+    setUserRounds(uniqueValues);
   }
 
   async function getUserRoundLength() {
@@ -88,11 +94,17 @@ function TransactionPage(props: Props) {
     if (connectionStatus !== 'connected') return;
 
     fetchUserRounds();
-  }, [connectionStatus]);
+  }, [connectionStatus, refresh]);
 
   return (
-    <TransactionPageWrapper>
-      <div className=""></div>
+    <TransactionPageWrapper className='flex justify-center'>
+      <div className="flex flex-col gap-4">
+        {userRounds.sort((a, b) => b - a).map((round) => (
+          <div key={round}>
+            <PredictionClaim round={round} />
+          </div>
+        ))}
+      </div>
     </TransactionPageWrapper>
   );
 }

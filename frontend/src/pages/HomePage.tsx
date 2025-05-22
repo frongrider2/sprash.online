@@ -133,7 +133,7 @@ function HomePage(props: Props) {
       // Sort roundLists by roundId in ascending order
       const sortedRoundLists = roundLists
         .sort((a, b) => +a.roundId - +b.roundId)
-        .slice(-6);
+        .slice(-10);
       setRoundWithArrayData(sortedRoundLists);
     } catch (error) {
       console.error('Error fetching round:', error);

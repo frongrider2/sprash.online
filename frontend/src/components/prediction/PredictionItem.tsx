@@ -21,6 +21,7 @@ import { CoinBalance } from '@mysten/sui/client';
 import { ProgressBar } from '@/components/utility/ProgressBar';
 import { usePriceState } from '@/states/price/reducer';
 import { formatNumberWithExpo } from '@/utils/format';
+import PredictionClaimBtn from '@/components/prediction/PredictionClaimBtn';
 
 interface Props extends SimpleComponent {
   roundId: string;
@@ -54,7 +55,7 @@ const FlipCardBack = styled.div`
   transform: rotateY(180deg);
 `;
 
-function PredictionItem({ roundData }: Props) {
+function PredictionItem({ roundData, roundId }: Props) {
   const { connectionStatus } = useCurrentWallet();
   const [flipped, setFlipped] = useState(false);
 
@@ -345,10 +346,24 @@ function PredictionItem({ roundData }: Props) {
                 )}
               </div>
 
-              <div className={`py-2  flex flex-col items-center`}>
+              <div
+                className={`py-2  flex flex-col items-center ${
+                  isVoidResult
+                    ? 'bg-black/20'
+                    : isBearResult
+                    ? 'bg-[#ED4B9E] text-white'
+                    : 'bg-black/20'
+                }`}
+              >
                 <b className="">DOWN</b>
                 <b className="text-sm">Payout {bearPayoutMultiple}X</b>
               </div>
+
+              {connectionStatus === 'connected' && closePrice !== 0 && (
+                <div className="mt-4">
+                  <PredictionClaimBtn roundData={roundData} roundId={roundId} />
+                </div>
+              )}
             </div>
           </div>
         </FlipCardFront>

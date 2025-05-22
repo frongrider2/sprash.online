@@ -143,6 +143,13 @@ public struct ContractUnpaused has copy, drop {
     unpaused_by: address,
 }
 
+public struct RewardClaimed has copy, drop {
+    round_id: u64,
+    amount: u64,
+    claimer: address,
+}
+
+
 // ===== Functions =====
 fun init(otw: DASHBOARD, ctx: &mut TxContext) {
     let otw = otw;
@@ -288,7 +295,7 @@ public fun claim(
     round_id: u64,
     clock: &Clock,
     ctx: &mut TxContext,
-): Coin<SUI> {
+) {
     check_not_paused(self);
     assert!(!self.locked, EReentrancy); // Reentrancy check
     self.locked = true;
@@ -318,10 +325,19 @@ public fun claim(
     bet.claimed = true;
 
     // Transfer reward
-    let reward = balance::split(&mut self.treasury_balance, reward_amount);
-    self.locked = false;
+    let reward_coin = coin::from_balance(
+        balance::split(&mut self.treasury_balance, reward_amount),
+        ctx
+    );
 
-    coin::from_balance(reward, ctx)
+    self.locked = false;
+    transfer::public_transfer(reward_coin, sender);
+
+    event::emit(RewardClaimed {
+        round_id,
+        amount: reward_amount,
+        claimer: sender,
+    });
 }
 
 public fun start_genesis(
@@ -726,9 +742,9 @@ public fun get_round_oracle_called(round: &Round): bool {
     round.oracle_called
 }
 
-public fun get_round_bet(round: &mut Round, user: address): &mut Bet {
+public fun get_round_bet(round: &Round, user: address): &Bet {
     assert!(vec_map::contains(&round.bets, &user), EUserNotBet);
-    let bet = vec_map::get_mut(&mut round.bets, &user);
+    let bet = vec_map::get(&round.bets, &user);
     bet
 }
 

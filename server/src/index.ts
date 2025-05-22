@@ -14,7 +14,7 @@ import 'dotenv/config';
 const PYTH_PRICE_SERVICE_URL = process.env.PYTH_PRICE_SERVICE_URL as string;
 const SUI_USDT_PRICE_ID = process.env.SUI_USDT_PRICE_ID as string;
 const RPC_URL = process.env.RPC_URL as string;
-const ROUND_INTERVAL = 60 * 1000; // 5 minutes;
+const ROUND_INTERVAL = 300 * 1000; // 5 minutes;
 
 const clockObj = '0x6';
 
@@ -503,29 +503,27 @@ const runPredictionSystem = async () => {
     // Start genesis round
     console.log('Starting prediction system...');
     if (!status.genesis_start && !status.genesis_lock) {
-      startGenesis();
+      await startGenesis();
     }
 
     // Wait for first round interval
     console.log(`Waiting ${ROUND_INTERVAL}ms before locking genesis round...`);
 
     // Lock genesis round
-    setTimeout(() => {
-      console.log('Locking genesis round...');
-      if (!status.genesis_start && !status.genesis_lock) {
-        lockGenesis();
-      }
-    }, ROUND_INTERVAL + 200);
+    console.log('Locking genesis round...');
+    if (!status.genesis_start && !status.genesis_lock) {
+      await new Promise((resolve) => setTimeout(resolve, ROUND_INTERVAL + 200));
+      await lockGenesis();
+    }
 
     if (!status.genesis_start && !status.genesis_lock) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, 2 * ROUND_INTERVAL + 1000)
-      );
+      await new Promise((resolve) => setTimeout(resolve, ROUND_INTERVAL));
     }
 
     // Start continuous execution loop
     while (true) {
       try {
+        await new Promise((resolve) => setTimeout(resolve, 200));
         console.log('Executing round...');
         await executeRound();
         setTimeout(() => {
@@ -533,9 +531,8 @@ const runPredictionSystem = async () => {
         }, 1000);
 
         console.log(`Waiting ${ROUND_INTERVAL}ms until next round...`);
-        await new Promise((resolve) =>
-          setTimeout(resolve, ROUND_INTERVAL + 1000)
-        );
+
+        await new Promise((resolve) => setTimeout(resolve, ROUND_INTERVAL));
       } catch (error) {
         console.error('Error in execution loop:', error);
       }

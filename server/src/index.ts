@@ -236,6 +236,46 @@ const executeRound = async () => {
   }
 };
 
+const claimTreasury = async () => {
+  try {
+    const tx = new Transaction();
+
+    tx.moveCall({
+      target: `${PACKAGE_ID}::dashboard::claim_treasury`,
+      arguments: [tx.object(PREDICTION_SYSTEM_ID), tx.object(ADMIN_CAP_ID)],
+    });
+
+    tx.setGasBudget(10_000_000);
+
+    const result = await suiClient.signAndExecuteTransaction({
+      signer: ed25519Keypair,
+      transaction: tx,
+      options: {
+        showEffects: true,
+        showEvents: true,
+      },
+    });
+
+    // Check transaction status
+    const txBlock = await suiClient.getTransactionBlock({
+      digest: result.digest,
+      options: {
+        showEffects: true,
+      },
+    });
+
+    if (txBlock.effects?.status?.status === 'failure') {
+      throw new Error(`Transaction failed: ${txBlock.effects.status.error}`);
+    }
+
+    console.log('Treasury claimed successfully!');
+    console.log('Transaction digest:', result.digest);
+    return result;
+  } catch (error) {
+    console.error('Error claiming treasury:', error);
+  }
+};
+
 const getPriceFromOracle = async () => {
   try {
     const tx = new Transaction();
@@ -379,6 +419,38 @@ const getCurrentRound = async (roundId: number) => {
   }
 };
 
+const checkTreasury = async () => {
+  try {
+    const predictionSystem = await suiClient.getObject({
+      id: PREDICTION_SYSTEM_ID,
+      options: {
+        showContent: true,
+        showType: true,
+      },
+    });
+
+    if (
+      predictionSystem.data &&
+      predictionSystem.data?.content &&
+      predictionSystem.data?.content?.dataType === 'moveObject'
+    ) {
+      const fields = (predictionSystem.data.content as any).fields as any;
+      console.log(fields);
+      if (fields) {
+        const treasuryAmount = fields.treasury_amount;
+
+        const treasuryPass = treasuryAmount / 10e9;
+
+        if (+treasuryPass > 0.001) {
+          await claimTreasury();
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error checking treasury:', error);
+  }
+};
+
 const runPredictionSystem = async () => {
   try {
     // Start genesis round
@@ -400,6 +472,9 @@ const runPredictionSystem = async () => {
       try {
         console.log('Executing round...');
         executeRound();
+        setTimeout(() => {
+          checkTreasury();
+        }, 1000);
 
         console.log(`Waiting ${ROUND_INTERVAL}ms until next round...`);
         await new Promise((resolve) => setTimeout(resolve, ROUND_INTERVAL));
@@ -421,3 +496,5 @@ runPredictionSystem().catch(console.error);
 // getPriceFromOracle().catch(console.error);
 
 // lockGenesis().catch(console.error);
+
+// checkTreasury().catch(console.error);

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  prediction-server:
+    build:
+      context: .
+      dockerfile: DockerFile
+    container_name: prediction-system-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - prediction-network
+
+networks:
+  prediction-network:
+    driver: bridge

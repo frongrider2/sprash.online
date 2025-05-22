@@ -533,11 +533,11 @@ const runPredictionSystem = async () => {
         }, 1000);
 
         console.log(`Waiting ${ROUND_INTERVAL}ms until next round...`);
-        await new Promise((resolve) => setTimeout(resolve, ROUND_INTERVAL));
+        await new Promise((resolve) =>
+          setTimeout(resolve, ROUND_INTERVAL + 1000)
+        );
       } catch (error) {
         console.error('Error in execution loop:', error);
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, ROUND_INTERVAL));
       }
     }
   } catch (error) {

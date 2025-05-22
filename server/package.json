@@ -1,0 +1,23 @@
+{
+  "name": "prediction-system-server",
+  "version": "1.0.0",
+  "description": "Automation server for prediction system",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@mysten/sui": "^1.29.1",
+    "@pythnetwork/price-service-client": "^1.9.0",
+    "@pythnetwork/pyth-sui-js": "^2.1.0",
+    "@scure/bip39": "^1.6.0",
+    "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.47",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.2.2"
+  }
+}

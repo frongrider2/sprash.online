@@ -1,0 +1,66 @@
+[package]
+name = "prediction_system"
+edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
+# license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
+# authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
+
+[dependencies]
+
+Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet", override = true }
+suins = { r.mvr = "@suins/core" }
+# For remote import, use the `{ git = "...", subdir = "...", rev = "..." }`.
+# Revision can be a branch, a tag, and a commit hash.
+# MyRemotePackage = { git = "https://some.remote/host.git", subdir = "remote/path", rev = "main" }
+
+# For local dependencies use `local = path`. Path is relative to the package root
+# Local = { local = "../path/to" }
+
+# To resolve a version conflict and force a specific version for dependency
+# override use `override = true`
+# Override = { local = "../conflicting/version", override = true }
+# SuiProver = { git = "https://github.com/asymptotic-code/sui-prover.git", subdir = "packages/sui-prover", rev = "main", override = true }
+
+[dependencies.Pyth]
+# git = "https://github.com/pyth-network/pyth-crosschain.git"
+local = "../../../pyth-crosschain/target_chains/sui/contracts"
+# subdir = "target_chains/sui/contracts"
+# rev = "sui-contract-testnet"
+
+[dependencies.Wormhole]
+# git = "https://github.com/wormhole-foundation/wormhole.git"
+local = "../../../wormhole/sui/wormhole"
+# # override = true
+# subdir = "sui/wormhole"
+# rev = "82d82bffd5a8566e4b5d94be4e4678ad55ab1f4f"
+
+[dependencies.usdc]
+local = "../../../stablecoin-sui/packages/usdc"
+
+
+# [dependencies.SuiProver]
+# # git = "https://github.com/asymptotic-code/sui-prover.git"
+# # subdir = "packages/sui-prover"
+# # rev = "main"
+# local = "../../../sui-prover/packages/sui-prover"
+
+
+[addresses]
+prediction_system = "0x0"
+# Named addresses will be accessible in Move as `@name`. They're also exported:
+# for example, `std = "0x1"` is exported by the Standard Library.
+# alice = "0xA11CE"
+wormhole = "0xf47329f4344f3bf0f8e436e2f7b485466cff300f12a166563995d3888c296a94"
+pyth = "0xabf837e98c26087cba0883c0a7a28326b1fa3c5e1e2c5abdb486f9e8f594c837"
+
+[dev-dependencies]
+# The dev-dependencies section allows overriding dependencies for `--test` and
+# `--dev` modes. You can introduce test-only dependencies here.
+# Local = { local = "../path/to/dev-build" }
+
+[dev-addresses]
+
+[r.mvr]
+network = "testnet"
+# The dev-addresses section allows overwriting named addresses for the `--test`
+# and `--dev` modes.
+# alice = "0xB0B"

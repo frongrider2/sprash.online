@@ -109,7 +109,11 @@ function HomePage(props: Props) {
       // Get all rounds from the table
       const rounds = await suiClient.getDynamicFields({
         parentId: round_table_id,
+        limit: currentRound,
+        cursor: '0',
       });
+
+      // const roundIds = rounds.data.map((round) => round.name.value);
 
       // Fetch all round objects in parallel
       const roundObjects = await Promise.all(
@@ -129,6 +133,12 @@ function HomePage(props: Props) {
           round.data.objectId
         );
       });
+
+      const sortedRoundListsx = roundLists.sort(
+        (a, b) => +a.roundId - +b.roundId
+      );
+
+      console.log({ sortedRoundListsx });
 
       // Sort roundLists by roundId in ascending order
       const sortedRoundLists = roundLists

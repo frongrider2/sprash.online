@@ -56,7 +56,7 @@ const EClaimBeforeEnd: u64 = 25; // claim before start
 const ENotRefundable: u64 = 26;
 
 // ===== Structs =====
-public struct Prediction has key {
+public struct Prediction has key, store {
     id: UID,
     rounds: Table<u64, Round>,
     current_round_id: u64,
@@ -267,11 +267,11 @@ public fun claim(self: &mut Prediction, round_id: u64, clock: &Clock, ctx: &mut 
     let claimable = round::is_bet_claimable(round, sender);
     let refundable = round::is_bet_refundable(round, sender);
     let oracle_called = round::oracle_called(round);
-
+    
     // Get all the reward calculation data before mutable borrow
     let reward_amount_total = round::reward_amount(round);
     let reward_base_amount_total = round::reward_base_amount(round);
-
+    
     let user_bet = round::get_bet_mut(round, sender);
     assert!(!bet::is_claimed(user_bet), EClaimAleady);
     let bet_amount = bet::amount(user_bet);
@@ -571,23 +571,6 @@ public fun get_round_by_id(self: &mut Prediction, round_id: u64): &Round {
 public fun get_current_round_id(self: &mut Prediction): u64 {
     self.current_round_id
 }
-
-public fun get_round_object_ids(self: &mut Prediction, cursor: u64, limit: u64): vector<u64> {
-    let mut result = vector::empty<u64>();
-    let mut current_id = cursor;
-    let mut count = 0;
-
-    while (count < limit && current_id <= self.current_round_id) {
-        if (table::contains(&self.rounds, current_id)) {
-            vector::push_back(&mut result, current_id);
-            count = count + 1;
-        };
-        current_id = current_id + 1;
-    };
-
-    result
-}
-
 
 // === Test Functions ===
 #[test_only]

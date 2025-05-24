@@ -31,7 +31,7 @@ function PredictionClaimBtn({ roundData }: Props) {
   const [isClaim, setIsClaim] = useState(false);
 
   async function isClaimable() {
-    console.log(roundData.round_id);
+    // console.log(roundData.round_id);
     const tx = new Transaction();
     tx.moveCall({
       target: `${packageId}::dashboard::claimable`,
@@ -78,7 +78,7 @@ function PredictionClaimBtn({ roundData }: Props) {
       transactionBlock: tx,
     });
 
-    console.log({ res });
+    // console.log({ res });
 
     const returnVal = res.results?.[0]?.returnValues?.[0];
 
@@ -149,7 +149,7 @@ function PredictionClaimBtn({ roundData }: Props) {
   const refresh = useRefreshState();
   useEffect(() => {
     isClaimable();
-    getBetDetail();
+    // getBetDetail();
   }, [refresh]);
   return (
     <PredictionClaimBtnWrapper>

@@ -14,7 +14,7 @@ import 'dotenv/config';
 const PYTH_PRICE_SERVICE_URL = process.env.PYTH_PRICE_SERVICE_URL as string;
 const SUI_USDT_PRICE_ID = process.env.SUI_USDT_PRICE_ID as string;
 const RPC_URL = process.env.RPC_URL as string;
-const ROUND_INTERVAL = 300 * 1000; // 5 minutes;
+const ROUND_INTERVAL = +(process.env.ROUND_INTERVAL || 300 * 1000); // 5 minutes
 
 const clockObj = '0x6';
 
@@ -72,7 +72,7 @@ const startGenesis = async () => {
     const tx = new Transaction();
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::dashboard::start_genesis`,
+      target: `${PACKAGE_ID}::prediction::start_genesis`,
       arguments: [
         tx.object(PREDICTION_SYSTEM_ID),
         tx.object(ADMIN_CAP_ID),
@@ -136,7 +136,7 @@ const lockGenesis = async () => {
     // console.log(priceInfoObjectIds);
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::dashboard::lock_genesis`,
+      target: `${PACKAGE_ID}::prediction::lock_genesis`,
       arguments: [
         tx.object(PREDICTION_SYSTEM_ID),
         tx.object(ADMIN_CAP_ID),
@@ -197,7 +197,7 @@ const executeRound = async () => {
     );
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::dashboard::execute_round`,
+      target: `${PACKAGE_ID}::prediction::execute_round`,
       arguments: [
         tx.object(PREDICTION_SYSTEM_ID),
         tx.object(ADMIN_CAP_ID),
@@ -243,7 +243,7 @@ const claimTreasury = async () => {
     const tx = new Transaction();
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::dashboard::claim_treasury`,
+      target: `${PACKAGE_ID}::prediction::claim_treasury`,
       arguments: [tx.object(PREDICTION_SYSTEM_ID), tx.object(ADMIN_CAP_ID)],
     });
 
@@ -299,7 +299,7 @@ const getPriceFromOracle = async () => {
     );
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::dashboard::get_price_from_oracle`,
+      target: `${PACKAGE_ID}::prediction::get_price_from_oracle`,
       arguments: [
         tx.object(ADMIN_CAP_ID),
         tx.object(clockObj),
@@ -344,7 +344,7 @@ const getCurrentRoundId = async () => {
     const tx = new Transaction();
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::dashboard::get_current_round_id`,
+      target: `${PACKAGE_ID}::prediction::get_current_round_id`,
       arguments: [tx.object(PREDICTION_SYSTEM_ID)],
     });
 
@@ -385,7 +385,7 @@ const getCurrentRound = async (roundId: number) => {
     const tx = new Transaction();
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::dashboard::get_round`,
+      target: `${PACKAGE_ID}::prediction::get_round`,
       arguments: [tx.object(PREDICTION_SYSTEM_ID), tx.pure.u64(roundId)],
     });
 

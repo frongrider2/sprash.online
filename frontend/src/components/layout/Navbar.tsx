@@ -22,8 +22,8 @@ function Navbar(props: Props) {
         </div>
 
         <div className="flex items-center gap-2 ml-6">
-          <NavLinkItem to="/" label="Home" />
-          <NavLinkItem to="/transaction" label="Transaction" />
+          {/* <NavLinkItem to="/" label="Home" /> */}
+          {/* <NavLinkItem to="/transaction" label="Transaction" /> */}
         </div>
       </div>
 

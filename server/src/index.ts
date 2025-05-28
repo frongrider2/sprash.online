@@ -16,6 +16,8 @@ const SUI_USDT_PRICE_ID = process.env.SUI_USDT_PRICE_ID as string;
 const RPC_URL = process.env.RPC_URL as string;
 const ROUND_INTERVAL = +(process.env.ROUND_INTERVAL || 300 * 1000); // 5 minutes
 
+console.log(ROUND_INTERVAL);
+
 const clockObj = '0x6';
 
 const PACKAGE_ID = process.env.PACKAGE_ID as string;

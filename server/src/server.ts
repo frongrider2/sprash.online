@@ -23,7 +23,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: `http://localhost:${PORT}`,
+        url: process.env.ENVIRONTMENT === 'production' ? `https://api.sprash.online` : `http://localhost:${PORT}`,
         description: 'Development server',
       },
     ],

@@ -1,13 +1,20 @@
+import mongoose from 'mongoose';
 import Prediction from '../models/prediction.model';
 
-const getPredictions = async (cursor: string | null, limit: number) => {
+const getPredictions = async (cursor: number | null, limit: number = 10) => {
   try {
-    const query = cursor ? { _id: { $gt: cursor } } : {};
+    const totalRounds = await Prediction.countDocuments();
+    console.log(totalRounds);
+    let query = {};
+    if (cursor !== null) {
+      query = { roundId: { $gt: cursor } };
+    }
     const predictions = await Prediction.find(query)
-      .sort({ _id: 1 })
+      .sort({ roundId: 1 })
       .limit(limit)
       .exec();
-    return predictions;
+
+    return { totalRounds, predictions };
   } catch (error) {
     console.error('Error fetching predictions:', error);
     throw error;
@@ -23,10 +30,10 @@ const createPrediction = async (objectId: string, roundIdFixed?: number) => {
         .exec();
       if (currentRound) {
         roundId = currentRound.roundId + 1;
-      }else{
+      } else {
         roundId = 1;
       }
-    }else{
+    } else {
       roundId = roundIdFixed;
     }
     const newPrediction = new Prediction({ roundId, objectId });

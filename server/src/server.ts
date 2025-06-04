@@ -73,7 +73,7 @@ app.get('/predictions', async (req: Request, res: Response) => {
   const { cursor, limit } = req.query;
   try {
     const predictions = await getPredictions(
-      cursor as string,
+      cursor ? parseInt(cursor as string, 10) : null,
       parseInt(limit as string, 10)
     );
     res.json(predictions);

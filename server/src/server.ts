@@ -8,9 +8,16 @@ import { connectToMongoDB } from './services/db-client.service';
 import 'dotenv/config';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJSDoc from 'swagger-jsdoc';
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+
+const URL_API = process.env.ENVIRONTMENT === 'production' ? `https://api.sprash.online` : `http://localhost:${PORT}`
+
+console.log(process.env.ENVIRONTMENT,process.env.ENVIRONTMENT === 'production');
 
 // Swagger configuration
 const swaggerOptions = {
@@ -23,7 +30,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: process.env.ENVIRONTMENT === 'production' ? `https://api.sprash.online` : `http://localhost:${PORT}`,
+        url: URL_API,
         description: 'Development server',
       },
     ],
@@ -117,6 +124,6 @@ app.listen(PORT, async () => {
 
   console.log(`Server is running on port ${PORT}`);
   console.log(
-    `Swagger API documentation available at http://localhost:${PORT}/api-docs`
+    `Swagger API documentation available at ${URL_API}/api-docs`
   );
 });

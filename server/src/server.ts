@@ -75,8 +75,6 @@ app.get('/predictions', async (req: Request, res: Response) => {
   }
 });
 
-
-
 /**
  * @swagger
  * /predictions:
@@ -104,7 +102,10 @@ app.get('/predictions', async (req: Request, res: Response) => {
  */
 app.post('/predictions', async (req: Request, res: Response) => {
   const predictionDto = req.body as { roundId: number; objectId: string };
-  const newPrediction = await createPrediction(predictionDto.roundId, predictionDto.objectId);
+  const newPrediction = await createPrediction(
+    predictionDto.objectId,
+    predictionDto.roundId
+  );
   res.json(newPrediction);
 });
 

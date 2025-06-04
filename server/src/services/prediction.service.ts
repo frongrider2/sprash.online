@@ -14,8 +14,21 @@ const getPredictions = async (cursor: string | null, limit: number) => {
   }
 };
 
-const createPrediction = async (roundId: number, objectId: string) => {
+const createPrediction = async (objectId: string, roundIdFixed?: number) => {
   try {
+    let roundId = 0;
+    if (!roundIdFixed) {
+      const currentRound = await Prediction.findOne()
+        .sort({ roundId: -1 })
+        .exec();
+      if (currentRound) {
+        roundId = currentRound.roundId + 1;
+      }else{
+        roundId = 1;
+      }
+    }else{
+      roundId = roundIdFixed;
+    }
     const newPrediction = new Prediction({ roundId, objectId });
     const savedPrediction = await newPrediction.save();
     return savedPrediction;

@@ -10,6 +10,7 @@ import {
 } from '@pythnetwork/pyth-sui-js';
 import 'dotenv/config';
 import { connectToMongoDB } from './services/db-client.service';
+import { createPrediction } from './services/prediction.service';
 
 // Configuration
 const PYTH_PRICE_SERVICE_URL = process.env.PYTH_PRICE_SERVICE_URL as string;
@@ -68,6 +69,23 @@ const getBalance = async () => {
   }
 };
 
+const saveObjectId = async (txBlock: any) => {
+  try {
+    const objectChanges = txBlock.objectChanges;
+    for (const objectChange of objectChanges) {
+      if (
+        objectChange.type === 'created' &&
+        objectChange.objectType.includes('round::Round')
+      ) {
+        const objectId = objectChange.objectId;
+        await createPrediction(objectId);
+      }
+    }
+  } catch (error) {
+    console.error('Error saving objectId:', error);
+  }
+};
+
 const startGenesis = async () => {
   try {
     console.log('Starting genesis round...');
@@ -103,6 +121,8 @@ const startGenesis = async () => {
         showObjectChanges: true,
       },
     });
+
+    await saveObjectId(txBlock);
 
     if (txBlock.effects?.status?.status === 'failure') {
       throw new Error(`Transaction failed: ${txBlock.effects.status.error}`);
@@ -164,8 +184,11 @@ const lockGenesis = async () => {
       digest: result.digest,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
+
+    await saveObjectId(txBlock);
 
     if (txBlock.effects?.status?.status === 'failure') {
       throw new Error(`Transaction failed: ${txBlock.effects.status.error}`);
@@ -226,8 +249,11 @@ const executeRound = async () => {
       digest: result.digest,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
+
+    await saveObjectId(txBlock);
 
     if (txBlock.effects?.status?.status === 'failure') {
       throw new Error(`Transaction failed: ${txBlock.effects.status.error}`);
@@ -267,6 +293,7 @@ const claimTreasury = async () => {
       digest: result.digest,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
 
@@ -327,6 +354,7 @@ const getPriceFromOracle = async () => {
       digest: result.digest,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
 
@@ -368,6 +396,7 @@ const getCurrentRoundId = async () => {
       digest: result.digest,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
 
@@ -409,6 +438,7 @@ const getCurrentRound = async (roundId: number) => {
       digest: result.digest,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
 

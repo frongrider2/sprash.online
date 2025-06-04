@@ -1,10 +1,20 @@
 version: '3.8'
 
 services:
-  prediction-server:
+  prediction-execution:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: prediction-system-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - prediction-network
+  prediction-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
     container_name: prediction-system-server
     restart: unless-stopped
     env_file:

@@ -24,9 +24,9 @@ import { formatNumberWithExpo } from '@/utils/format';
 import PredictionClaimBtn from '@/components/prediction/PredictionClaimBtn';
 
 interface Props extends SimpleComponent {
-  roundId: number;
-  roundData: RoundPassInterface;
-  // objectId: string;
+  roundId: string;
+  // roundData: RoundPassInterface;
+  objectId: string;
 }
 
 const PredictionItemWrapper = styled.div`
@@ -56,17 +56,7 @@ const FlipCardBack = styled.div`
   transform: rotateY(180deg);
 `;
 
-export function PredictionItemObject({
-  objectId,
-  roundId,
-}: {
-  roundId: number;
-  objectId: string;
-}) {
-  return null;
-}
-
-function PredictionItem({ roundData, roundId }: Props) {
+function PredictionItem({ objectId, roundId }: Props) {
   const { connectionStatus } = useCurrentWallet();
   const [flipped, setFlipped] = useState(false);
 
@@ -372,10 +362,7 @@ function PredictionItem({ roundData, roundId }: Props) {
 
               {connectionStatus === 'connected' && closePrice !== 0 && (
                 <div className="mt-4">
-                  <PredictionClaimBtn
-                    roundData={roundData}
-                    roundId={roundId.toString()}
-                  />
+                  <PredictionClaimBtn roundData={roundData} roundId={roundId} />
                 </div>
               )}
             </div>

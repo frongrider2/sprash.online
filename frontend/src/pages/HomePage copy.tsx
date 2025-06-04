@@ -1,19 +1,14 @@
-import PredictionItem, {
-  PredictionItemObject,
-} from '@/components/prediction/PredictionItem';
+import PredictionItem from '@/components/prediction/PredictionItem';
 import styled from 'styled-components';
 import logo from '@/assets/logo/logo.png';
 import { Icon } from '@iconify/react/dist/iconify.js';
 import { usePriceState } from '@/states/price/reducer';
-import { decodeRound, formatNumberWithExpo } from '@/utils/format';
+import { formatNumberWithExpo } from '@/utils/format';
 import { usePredictionState } from '@/states/prediction/reducer';
-import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
+import { useSuiClient } from '@mysten/dapp-kit';
 import { useEffect, useState } from 'react';
 import { useRefreshState } from '@/states/refresh/reducer';
 import { RoundInterface, RoundPassInterface } from '@/types/round';
-import { Transaction } from '@mysten/sui/transactions';
-import { fromBase64, fromHex, toBase64, toHex } from '@mysten/sui/utils';
-import { useNetworkVariable } from '@/config/networkConfig';
 
 interface Props extends SimpleComponent {}
 
@@ -73,20 +68,13 @@ function HomePage(props: Props) {
   const currentRound = +predictionState.current_round_id;
   const refresh = useRefreshState();
 
+  const round_table_id = predictionState.round_table_id;
   const suiClient = useSuiClient();
   const [roundList, setRoundList] = useState<RoundPassInterface[]>([]);
 
-  const account = useCurrentAccount();
-
-  const packageId = useNetworkVariable('packageId');
-  const predictionSystemId = useNetworkVariable('predictionSystemId');
-
-  const [roundObjectIdList, setRoundObjectIdList] = useState<
-    {
-      roundId: number;
-      objectId: string;
-    }[]
-  >([]);
+  const [currentRoundNow, setCurrentRoundNow] = useState<number | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     const container = document.querySelector('.overflow-x-scroll');
@@ -95,48 +83,78 @@ function HomePage(props: Props) {
     }
   }, [roundList]);
 
-  const fetchRoundObjectId = async (roundId: number) => {
-    const tx = new Transaction();
-
-    tx.moveCall({
-      target: `${packageId}::prediction::get_round_by_id`,
-      arguments: [tx.object(predictionSystemId), tx.pure.u64(roundId)],
-    });
-
-    const result = await suiClient.devInspectTransactionBlock({
-      sender: account.address,
-      transactionBlock: tx,
-    });
-
-    console.log({ result });
-    const returnValue = result.results?.[0]?.returnValues?.[0];
-
-    const decodedRound = decodeRound(returnValue[0]);
-
-    console.log({ decodedRound });
+  const setRoundWithArrayData = (newRounds: RoundPassInterface[]) => {
+    setRoundList((prev) =>
+      prev
+        .map((oldRound) => {
+          const updated = newRounds.find(
+            (newRound) => newRound.objectId === oldRound.objectId
+          );
+          return updated ? { ...oldRound, ...updated } : oldRound;
+        })
+        .concat(
+          newRounds.filter(
+            (newRound) =>
+              !prev.find((oldRound) => oldRound.objectId === newRound.objectId)
+          )
+        )
+    );
   };
 
-  const fetchRoundData = async () => {
-    const arrayResult = Array.from(
-      { length: Math.min(10, currentRound) },
-      (_, index) => currentRound - Math.min(10, currentRound) + 1 + index
-    );
+  const fetchRound = async () => {
+    // if (currentRoundNow === currentRound) return;
+    if (!round_table_id) return;
+    setCurrentRoundNow(currentRound);
+    try {
+      // Get all rounds from the table
+      const rounds = await suiClient.getDynamicFields({
+        parentId: round_table_id,
+        limit: currentRound,
+        cursor: '0',
+      });
 
-    for (const roundId of arrayResult) {
-      const check = roundObjectIdList.find((item) => item.roundId === roundId);
-      if (check) {
-        continue;
-      }
+      // const roundIds = rounds.data.map((round) => round.name.value);
 
-      await fetchRoundObjectId(roundId);
+      // Fetch all round objects in parallel
+      const roundObjects = await Promise.all(
+        rounds.data.map((round) =>
+          suiClient.getObject({
+            id: round.objectId,
+            options: {
+              showContent: true,
+            },
+          })
+        )
+      );
+
+      const roundLists = roundObjects.map((round) => {
+        return passRoundData(
+          (round.data.content as any).fields,
+          round.data.objectId
+        );
+      });
+
+      const sortedRoundListsx = roundLists.sort(
+        (a, b) => +a.roundId - +b.roundId
+      );
+
+      console.log({ sortedRoundListsx });
+
+      // Sort roundLists by roundId in ascending order
+      const sortedRoundLists = roundLists
+        .sort((a, b) => +a.roundId - +b.roundId)
+        .slice(-10);
+      setRoundWithArrayData(sortedRoundLists);
+    } catch (error) {
+      console.error('Error fetching round:', error);
     }
   };
 
   useEffect(() => {
-    fetchRoundData();
-  }, [currentRound]);
+    fetchRound();
+  }, [currentRound, refresh]);
 
-  // console.log({ roundObjectIdList });
+  console.log({ roundList });
 
   return (
     <HomePageWrapper>
@@ -171,13 +189,10 @@ function HomePage(props: Props) {
           <Icon icon="mdi:chevron-left" className='text-3xl'/>
         </button> */}
         <div className="w-full max-w-full flex gap-4 overflow-x-scroll scrollbar-hide">
-          {roundObjectIdList.map((round) => {
+          {roundList.map((round) => {
             return (
               <div key={round.roundId}>
-                <PredictionItemObject
-                  roundId={round.roundId}
-                  objectId={round.objectId}
-                />
+                <PredictionItem roundId={round.objectId} roundData={round} />
               </div>
             );
           })}

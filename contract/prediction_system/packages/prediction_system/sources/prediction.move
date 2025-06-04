@@ -558,7 +558,7 @@ public fun get_bettable(self: &mut Prediction, clock: &Clock, round_id: u64): bo
     timestamp < round::lock_time(round)
 }
 
-public fun get_round_mut(self: &mut Prediction, round_id: u64): &mut Round {
+fun get_round_mut(self: &mut Prediction, round_id: u64): &mut Round {
     assert!(table::contains(&self.rounds, round_id), EExecuteBeforeGenesis);
     table::borrow_mut(&mut self.rounds, round_id)
 }
@@ -568,26 +568,14 @@ public fun get_round_by_id(self: &mut Prediction, round_id: u64): &Round {
     table::borrow(&self.rounds, round_id)
 }
 
+public fun get_bet_by_round_id(self: &mut Prediction, round_id: u64, user: address): &Bet {
+    let round = self.get_round_by_id(round_id);
+    round::get_bet(round, user)
+}
+
 public fun get_current_round_id(self: &mut Prediction): u64 {
     self.current_round_id
 }
-
-public fun get_round_object_ids(self: &mut Prediction, cursor: u64, limit: u64): vector<u64> {
-    let mut result = vector::empty<u64>();
-    let mut current_id = cursor;
-    let mut count = 0;
-
-    while (count < limit && current_id <= self.current_round_id) {
-        if (table::contains(&self.rounds, current_id)) {
-            vector::push_back(&mut result, current_id);
-            count = count + 1;
-        };
-        current_id = current_id + 1;
-    };
-
-    result
-}
-
 
 // === Test Functions ===
 #[test_only]

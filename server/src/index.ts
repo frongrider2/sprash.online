@@ -9,6 +9,7 @@ import {
   SuiPythClient,
 } from '@pythnetwork/pyth-sui-js';
 import 'dotenv/config';
+import { connectToMongoDB } from './services/db-client.service';
 
 // Configuration
 const PYTH_PRICE_SERVICE_URL = process.env.PYTH_PRICE_SERVICE_URL as string;
@@ -99,6 +100,7 @@ const startGenesis = async () => {
       digest: result.digest,
       options: {
         showEffects: true,
+        showObjectChanges: true,
       },
     });
 
@@ -489,6 +491,7 @@ const checkStatus = async () => {
 };
 
 const runPredictionSystem = async () => {
+  await connectToMongoDB();
   const status = await checkStatus();
   if (!status) {
     return;

@@ -2,8 +2,7 @@ module prediction_system::round;
 
 use prediction_system::bet::{Self, Bet};
 use pyth::i64::{Self, I64};
-use sui::object::{Self, UID};
-use sui::vec_map::{Self, VecMap};
+use sui::table::{Self, Table};
 
 public struct Round has key,store {
     id: UID,
@@ -22,7 +21,7 @@ public struct Round has key,store {
     treasury_fee_amount: u64,
     reward_amount: u64,
     reward_base_amount: u64,
-    bets: VecMap<address, Bet>,
+    bets: Table<address, Bet>,
     oracle_called: bool,
 }
 
@@ -51,7 +50,7 @@ public(package) fun new(
         treasury_fee_amount: 0,
         reward_amount: 0,
         reward_base_amount: 0,
-        bets: vec_map::empty(),
+        bets: table::new(ctx),
         oracle_called: false,
     }
 }
@@ -117,7 +116,7 @@ public(package) fun set_oracle_called(self: &mut Round, called: bool) {
 public(package) fun add_bet(self: &mut Round, user: address, bet: Bet) {
     let bet_amount = bet::amount(&bet);
 
-    vec_map::insert(&mut self.bets, user, bet);
+    table::add(&mut self.bets, user, bet);
 
     if (bet::is_up(&bet)) {
         self.up_amount = self.up_amount + bet_amount;
@@ -129,26 +128,26 @@ public(package) fun add_bet(self: &mut Round, user: address, bet: Bet) {
 }
 
 public fun has_bet(self: &Round, user: address): bool {
-    vec_map::contains(&self.bets, &user)
+    table::contains(&self.bets, user)
 }
 
-public fun get_bet(self: &Round, user: address): Bet {
-    *vec_map::get(&self.bets, &user)
+public fun get_bet(self: &Round, user: address): &Bet {
+    table::borrow(&self.bets, user)
 }
 
 public(package) fun get_bet_mut(self: &mut Round, user: address): &mut Bet {
-    vec_map::get_mut(&mut self.bets, &user)
+    table::borrow_mut(&mut self.bets, user)
 }
 
 // New function to check if a bet is claimable
 public fun is_bet_claimable(self: &Round, user: address): bool {
-    if (!vec_map::contains(&self.bets, &user)) {
-        return false
+    if (!table::contains(&self.bets, user)) {
+        return false;
     };
 
-    let bet = *vec_map::get(&self.bets, &user);
+    let bet = table::borrow(&self.bets, user);
 
-    if (bet::is_claimed(&bet)) {
+    if (bet::is_claimed(bet)) {
         return false
     };
 
@@ -159,23 +158,23 @@ public fun is_bet_claimable(self: &Round, user: address): bool {
     };
 
     self.oracle_called && 
-        bet::amount(&bet) != 0 &&
-        !bet::is_claimed(&bet) &&
-        ((self.close_price.get_magnitude_if_positive() > self.lock_price.get_magnitude_if_positive() && bet::is_up(&bet)) || 
-         (self.close_price.get_magnitude_if_positive() < self.lock_price.get_magnitude_if_positive() && bet::is_down(&bet)))
+        bet::amount(bet) != 0 &&
+        !bet::is_claimed(bet) &&
+        ((self.close_price.get_magnitude_if_positive() > self.lock_price.get_magnitude_if_positive() && bet::is_up(bet)) || 
+         (self.close_price.get_magnitude_if_positive() < self.lock_price.get_magnitude_if_positive() && bet::is_down(bet)))
 }
 
 // New function to check if a bet is refundable
 public fun is_bet_refundable(self: &Round, user: address): bool {
-    if (!vec_map::contains(&self.bets, &user)) {
+    if (!table::contains(&self.bets, user)) {
         return false
     };
 
-    let bet = *vec_map::get(&self.bets, &user);
+    let bet = table::borrow(&self.bets, user);
 
     !self.oracle_called &&
-        !bet::is_claimed(&bet) &&
-        bet::amount(&bet) != 0
+        !bet::is_claimed(bet) &&
+        bet::amount(bet) != 0
 }
 
 public(package) fun calculate_rewards(self: &mut Round): (u64, u64) {

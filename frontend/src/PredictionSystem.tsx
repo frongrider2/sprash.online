@@ -28,15 +28,17 @@ function PredictionSystem(props: Props) {
     }
   );
 
+
   if (dataResponse?.data) {
     const predictionSystem = parsePrediction(dataResponse.data);
+    // console.log(predictionSystem);
 
     dispatch(PredictionSlide.actions.setPrediction(predictionSystem));
   }
 
   useEffect(() => {
     refreshFetch();
-  }, [refresh, refreshFetch]);
+  }, [refreshFetch]);
 
   return null;
 }

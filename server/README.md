@@ -61,3 +61,5 @@ sui client call \
 
 
 <!-- simple decentralized prediction market -->
+
+<!-- docker compose -f docker-compose-local.yml up -d --build -->

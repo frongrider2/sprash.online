@@ -1,8 +1,5 @@
-/// Module: self
-module prediction_system::prediction;
+module prediction_system::dashboard;
 
-use prediction_system::bet::{Self, Bet};
-use prediction_system::round::{Self, Round};
 use pyth::i64::{Self, I64};
 use pyth::price;
 use pyth::price_identifier;
@@ -12,18 +9,15 @@ use sui::balance::{Self, Balance};
 use sui::clock::{Self, Clock};
 use sui::coin::{Self, Coin};
 use sui::event;
-use sui::object::{Self, UID};
 use sui::sui::SUI;
 use sui::table::{Self, Table};
-use sui::transfer;
-use sui::tx_context::{Self, TxContext};
 use sui::types;
 use sui::vec_map::{Self, VecMap};
 
 // ===== Constants =====
 const MIN_BET_AMOUNT: u64 = 1_000_000; // 0.001 SUI
 const MAX_BET_AMOUNT: u64 = 100_000_000_000; // 100 SUI
-const ROUND_INTERVAL: u64 = 1200 * 1000; // 5 minute in seconds
+const ROUND_INTERVAL: u64 = 300 * 1000; // 5 minute in seconds
 const BUFFER_SECONDS: u64 = 30 * 1000; // 30 seconds buffer for oracle updates
 
 // ===== Errors =====
@@ -56,7 +50,7 @@ const EClaimBeforeEnd: u64 = 25; // claim before start
 const ENotRefundable: u64 = 26;
 
 // ===== Structs =====
-public struct Prediction has key {
+public struct Prediction has key, store {
     id: UID,
     rounds: Table<u64, Round>,
     current_round_id: u64,
@@ -70,8 +64,35 @@ public struct Prediction has key {
     user_round: Table<address, vector<u64>>,
 }
 
+public struct Round has key, store {
+    id: UID,
+    round_id: u64,
+    start_time: u64,
+    lock_time: u64,
+    lock_oracle_round_id: u64,
+    close_time: u64,
+    close_oracle_round_id: u64,
+    lock_price: I64,
+    close_price: I64,
+    total_amount: u64,
+    up_amount: u64,
+    down_amount: u64,
+    treasury_fee: u64, // 3% = 300 fee
+    treasury_fee_amount: u64,
+    reward_amount: u64,
+    reward_base_amount: u64,
+    bets: VecMap<address, Bet>,
+    oracle_called: bool,
+}
+
+public struct Bet has copy, store {
+    amount: u64,
+    direction: bool, // true for up, false for down
+    claimed: bool,
+}
+
 // ===== Events =====
-public struct PREDICTION has drop {}
+public struct DASHBOARD has drop {}
 
 public struct AdminCap has key {
     id: UID,
@@ -128,7 +149,7 @@ public struct RewardClaimed has copy, drop {
 }
 
 // ===== Functions =====
-fun init(otw: PREDICTION, ctx: &mut TxContext) {
+fun init(otw: DASHBOARD, ctx: &mut TxContext) {
     let otw = otw;
     new_prediction(otw, ctx);
 
@@ -138,7 +159,7 @@ fun init(otw: PREDICTION, ctx: &mut TxContext) {
     );
 }
 
-fun new_prediction(_otw: PREDICTION, ctx: &mut TxContext) {
+fun new_prediction(_otw: DASHBOARD, ctx: &mut TxContext) {
     assert!(types::is_one_time_witness(&_otw), EInvalidOTW);
     let self = Prediction {
         id: object::new(ctx),
@@ -185,6 +206,7 @@ public fun bet_up(
     ctx: &mut TxContext,
 ) {
     check_not_paused(self);
+    // Reentrancy check
     assert!(!self.locked, EReentrancy);
     self.locked = true;
 
@@ -195,11 +217,19 @@ public fun bet_up(
     assert!(amount <= MAX_BET_AMOUNT, EMaxBetAmount);
 
     let sender = tx_context::sender(ctx);
-    let round = self.get_round_mut(round_id);
-    assert!(!round::has_bet(round, sender), EAlreadyBet);
+    let round = self.get_round(round_id);
+    assert!(!get_is_bet_already(round, sender), EAlreadyBet);
 
-    let new_bet = bet::new(amount, true);
-    round::add_bet(round, sender, new_bet);
+    round.up_amount = round.up_amount + amount;
+    round.total_amount = round.total_amount + amount;
+
+    let bet = Bet {
+        amount: amount,
+        direction: true,
+        claimed: false,
+    };
+
+    vec_map::insert(&mut round.bets, sender, bet);
 
     let treasury_balance = coin::into_balance(bet_amount);
     balance::join(&mut self.treasury_balance, treasury_balance);
@@ -211,6 +241,7 @@ public fun bet_up(
         direction: true,
     });
 
+    // Release reentrancy lock
     self.locked = false;
     add_user_round(self, sender, round_id);
 }
@@ -223,6 +254,7 @@ public fun bet_down(
     ctx: &mut TxContext,
 ) {
     check_not_paused(self);
+    // Reentrancy check
     assert!(!self.locked, EReentrancy);
     self.locked = true;
 
@@ -233,59 +265,59 @@ public fun bet_down(
     assert!(amount <= MAX_BET_AMOUNT, EMaxBetAmount);
 
     let sender = tx_context::sender(ctx);
-    let round = self.get_round_mut(round_id);
-    assert!(!round::has_bet(round, sender), EAlreadyBet);
+    let round = self.get_round(round_id);
+    assert!(!get_is_bet_already(round, sender), EAlreadyBet);
 
-    let new_bet = bet::new(amount, false);
-    round::add_bet(round, sender, new_bet);
+    round.down_amount = round.down_amount + amount;
+    round.total_amount = round.total_amount + amount;
+
+    let bet = Bet {
+        amount: amount,
+        direction: false,
+        claimed: false,
+    };
+
+    vec_map::insert(&mut round.bets, sender, bet);
 
     let treasury_balance = coin::into_balance(bet_amount);
     balance::join(&mut self.treasury_balance, treasury_balance);
 
-    event::emit(BetPlaced {
-        round_id,
-        user: sender,
-        amount,
-        direction: false,
-    });
-
+    // Release reentrancy lock
     self.locked = false;
+
     add_user_round(self, sender, round_id);
 }
 
 public fun claim(self: &mut Prediction, round_id: u64, clock: &Clock, ctx: &mut TxContext) {
     check_not_paused(self);
-    assert!(!self.locked, EReentrancy);
+    assert!(!self.locked, EReentrancy); // Reentrancy check
     self.locked = true;
 
     let sender = tx_context::sender(ctx);
-    let round = self.get_round_mut(round_id);
 
-    assert!(clock::timestamp_ms(clock) >= round::close_time(round), EClaimBeforeEnd);
-    assert!(round::has_bet(round, sender), EUserNotBet);
+    let claimable_status = self.claimable(round_id, sender);
+    let refundable_status = self.refundable(round_id, sender);
 
-    let claimable = round::is_bet_claimable(round, sender);
-    let refundable = round::is_bet_refundable(round, sender);
-    let oracle_called = round::oracle_called(round);
+    let round = self.get_round(round_id);
+    let bet = vec_map::get(&round.bets, &sender);
 
-    // Get all the reward calculation data before mutable borrow
-    let reward_amount_total = round::reward_amount(round);
-    let reward_base_amount_total = round::reward_base_amount(round);
+    // Verify claim timing
+    assert!(clock::timestamp_ms(clock) >= round.close_time, EClaimBeforeEnd);
 
-    let user_bet = round::get_bet_mut(round, sender);
-    assert!(!bet::is_claimed(user_bet), EClaimAleady);
-    let bet_amount = bet::amount(user_bet);
-
-    let reward_amount = if (oracle_called) {
-        assert!(claimable, ENotClaimable);
-        (bet_amount * reward_amount_total) / reward_base_amount_total
+    // Calculate reward amount
+    let reward_amount = if (round.oracle_called) {
+        assert!(claimable_status, ENotClaimable);
+        (bet.amount * round.reward_amount) / round.reward_base_amount
     } else {
-        assert!(refundable, ENotRefundable);
-        bet_amount
+        assert!(refundable_status, ENotRefundable);
+        bet.amount
     };
 
-    bet::set_claimed(user_bet, true);
+    // Mark bet as claimed
+    let bet = vec_map::get_mut(&mut round.bets, &sender);
+    bet.claimed = true;
 
+    // Transfer reward
     let reward_coin = coin::from_balance(
         balance::split(&mut self.treasury_balance, reward_amount),
         ctx,
@@ -391,16 +423,31 @@ fun start_round(
     round_id: u64,
     ctx: &mut TxContext,
 ) {
+    // assert!(!self.rounds.contains(round_id), ERoundAlreadyExists);
     let current_time = clock::timestamp_ms(clock);
-    let round = round::new(
-        round_id,
-        current_time,
-        current_time + ROUND_INTERVAL,
-        current_time + (2*ROUND_INTERVAL),
-        ctx,
-    );
 
-    table::add(&mut self.rounds, round_id, round);
+    let round = Round {
+        id: object::new(ctx),
+        round_id: round_id,
+        start_time: current_time,
+        lock_time: current_time + ROUND_INTERVAL,
+        close_time: current_time + (2*ROUND_INTERVAL),
+        lock_price: i64::new(0, false),
+        close_price: i64::new(0, false),
+        total_amount: 0,
+        lock_oracle_round_id: 0,
+        close_oracle_round_id: 0,
+        up_amount: 0,
+        down_amount: 0,
+        treasury_fee: 300, // 3% fee
+        treasury_fee_amount: 0,
+        reward_amount: 0,
+        reward_base_amount: 0,
+        bets: vec_map::empty(),
+        oracle_called: false,
+    };
+
+    self.rounds.add(round_id, round);
 
     event::emit(RoundStarted {
         round_id,
@@ -417,20 +464,17 @@ fun lock_round(
     round_id: u64,
     price: I64,
     oracle_round_id: u64,
-    _ctx: &mut TxContext,
+    ctx: &mut TxContext,
 ) {
-    let round = self.get_round_mut(round_id);
+    let round = self.get_round(round_id);
 
-    assert!(round::start_time(round) != 0, ELockRoundBeforeStart);
-    assert!(clock::timestamp_ms(clock) >= round::lock_time(round), ELockRoundBeforeLockTime);
-    assert!(
-        clock::timestamp_ms(clock) <= round::lock_time(round) + BUFFER_SECONDS,
-        ELockRoundAfterBuffer,
-    );
+    assert!(round.start_time != 0, ELockRoundBeforeStart);
+    assert!(clock::timestamp_ms(clock) >= round.lock_time, ELockRoundBeforeLockTime);
+    assert!(clock::timestamp_ms(clock) <= round.lock_time + BUFFER_SECONDS, ELockRoundAfterBuffer);
 
-    round::set_close_time(round, clock::timestamp_ms(clock) + ROUND_INTERVAL);
-    round::set_lock_price(round, price);
-    round::set_lock_oracle_round_id(round, oracle_round_id);
+    round.close_time = clock::timestamp_ms(clock) + ROUND_INTERVAL;
+    round.lock_price = price;
+    round.lock_oracle_round_id = oracle_round_id;
 
     event::emit(RoundLocked {
         round_id,
@@ -447,39 +491,62 @@ fun end_round(
     oracle_round_id: u64,
     price: I64,
 ) {
-    let round = self.get_round_mut(round_id);
+    let round = self.get_round(round_id);
 
-    assert!(round::lock_time(round) != 0, EEndRoundBeforeLock);
-    assert!(clock::timestamp_ms(clock) >= round::close_time(round), EEndRoundBeforeClose);
-    assert!(
-        clock::timestamp_ms(clock) <= round::close_time(round) + BUFFER_SECONDS,
-        EEndRoundAfterBuffer,
-    );
+    assert!(round.lock_time !=0, EEndRoundBeforeLock);
+    assert!(clock::timestamp_ms(clock) >= round.close_time, EEndRoundBeforeClose);
+    assert!(clock::timestamp_ms(clock) <= round.close_time + BUFFER_SECONDS, EEndRoundAfterBuffer);
 
-    round::set_close_price(round, price);
-    round::set_close_oracle_round_id(round, oracle_round_id);
-    round::set_oracle_called(round, true);
+    round.close_price = price;
+    round.close_oracle_round_id = oracle_round_id;
+    round.oracle_called = true;
 
     event::emit(RoundEnded {
         round_id,
         close_price: price,
         close_oracle_round_id: oracle_round_id,
-        total_amount: round::total_amount(round),
-        up_amount: round::up_amount(round),
-        down_amount: round::down_amount(round),
-        treasury_fee_amount: round::treasury_fee_amount(round),
-        reward_amount: round::reward_amount(round),
+        total_amount: round.total_amount,
+        up_amount: round.up_amount,
+        down_amount: round.down_amount,
+        treasury_fee_amount: round.treasury_fee_amount,
+        reward_amount: round.reward_amount,
     });
 }
 
 fun calculate_reward(self: &mut Prediction, round_id: u64) {
-    let round = self.get_round_mut(round_id);
-    assert!(
-        round::reward_amount(round) == 0 && round::reward_base_amount(round) == 0,
-        ECalculateReward,
-    );
+    let round = self.get_round(round_id);
+    assert!(round.reward_amount == 0 && round.reward_base_amount == 0, ECalculateReward);
 
-    let (reward_amount, treasury_amt) = round::calculate_rewards(round);
+    let reward_base_cal_amount: u64;
+    let treasury_amt: u64;
+    let reward_amount: u64;
+
+    if (
+        round.close_price.get_magnitude_if_positive() > round.lock_price.get_magnitude_if_positive()
+    ) {
+        // Bull wins
+        reward_base_cal_amount = round.up_amount;
+        // More precise treasury fee calculation
+        treasury_amt = (round.total_amount * round.treasury_fee) / 10000;
+        reward_amount = round.total_amount - treasury_amt;
+    } else if (
+        round.close_price.get_magnitude_if_positive() < round.lock_price.get_magnitude_if_positive()
+    ) {
+        // Bear wins
+        reward_base_cal_amount = round.down_amount;
+        treasury_amt = (round.total_amount * round.treasury_fee) / 10000;
+        reward_amount = round.total_amount - treasury_amt;
+    } else {
+        // House wins
+        reward_base_cal_amount = 0;
+        reward_amount = 0;
+        treasury_amt = round.total_amount;
+    };
+
+    round.reward_base_amount = reward_base_cal_amount;
+    round.reward_amount = reward_amount;
+    round.treasury_fee_amount = treasury_amt;
+
     self.treasury_amount = self.treasury_amount + treasury_amt;
 }
 
@@ -540,47 +607,184 @@ fun check_not_paused(self: &Prediction) {
 
 // === Vew Functions ===
 public fun claimable(self: &mut Prediction, round_id: u64, user: address): bool {
-    let round = self.get_round_mut(round_id);
-    round::is_bet_claimable(round, user)
+    let sender = user;
+    let round = self.get_round(round_id);
+
+    // Check if user has bet in this round
+    if (!get_is_bet_already(round, sender)) {
+        return false
+    };
+
+    let bet = vec_map::get(&round.bets, &sender);
+
+    // Check if already claimed
+    if (bet.claimed) {
+        return false
+    };
+
+    // Check if prices are equal (no winner)
+    if (round.lock_price == round.close_price) {
+        return false
+    };
+
+    // Check if oracle called and bet matches price direction
+    round.oracle_called && 
+    bet.amount != 0 &&
+    !bet.claimed &&
+    ((round.close_price.get_magnitude_if_positive() > round.lock_price.get_magnitude_if_positive() && bet.direction == true) || 
+     (round.close_price.get_magnitude_if_positive() < round.lock_price.get_magnitude_if_positive() && bet.direction == false))
 }
 
 public fun refundable(self: &mut Prediction, round_id: u64, user: address): bool {
-    let round = self.get_round_mut(round_id);
-    round::is_bet_refundable(round, user)
+    let round = self.get_round(round_id);
+    let sender = user;
+
+    // Check if user has bet in this round
+    if (!get_is_bet_already(round, sender)) {
+        return false
+    };
+
+    let bet = vec_map::get(&round.bets, &sender);
+
+    !round.oracle_called &&
+    !bet.claimed &&
+    bet.amount != 0
 }
 
 public fun get_bettable(self: &mut Prediction, clock: &Clock, round_id: u64): bool {
-    let round = self.get_round_mut(round_id);
+    let round = self.get_round(round_id);
     let timestamp = clock::timestamp_ms(clock);
-    round::start_time(round) != 0 && 
-    round::lock_time(round) != 0 && 
-    timestamp >= round::start_time(round) && 
-    timestamp < round::lock_time(round)
+    // Only allow betting between start_time and lock_time
+    round.start_time != 0 && 
+    round.lock_time != 0 && 
+    timestamp >= round.start_time && 
+    timestamp < round.lock_time
 }
 
-fun get_round_mut(self: &mut Prediction, round_id: u64): &mut Round {
+public fun get_is_bet_already(round: &Round, sender: address): bool {
+    vec_map::contains(&round.bets, &sender)
+}
+
+public fun get_round_start_time(round: &Round): u64 {
+    round.start_time
+}
+
+public fun get_round_lock_time(round: &Round): u64 {
+    round.lock_time
+}
+
+public fun get_round_close_time(round: &Round): u64 {
+    round.close_time
+}
+
+public fun get_round_lock_oracle_round_id(round: &Round): u64 {
+    round.lock_oracle_round_id
+}
+
+public fun get_round_close_oracle_round_id(round: &Round): u64 {
+    round.close_oracle_round_id
+}
+
+public fun get_round_lock_price(round: &Round): u64 {
+    round.lock_price.get_magnitude_if_positive()
+}
+
+public fun get_round_close_price(round: &Round): u64 {
+    round.close_price.get_magnitude_if_positive()
+}
+
+public fun get_round_total_amount(round: &Round): u64 {
+    round.total_amount
+}
+
+public fun get_round_up_amount(round: &Round): u64 {
+    round.up_amount
+}
+
+public fun get_round_down_amount(round: &Round): u64 {
+    round.down_amount
+}
+
+public fun get_round_treasury_fee(round: &Round): u64 {
+    round.treasury_fee
+}
+
+public fun get_round(self: &mut Prediction, round_id: u64): &mut Round {
     assert!(table::contains(&self.rounds, round_id), EExecuteBeforeGenesis);
-    table::borrow_mut(&mut self.rounds, round_id)
-}
-
-public fun get_round_by_id(self: &mut Prediction, round_id: u64): &Round {
-    assert!(table::contains(&self.rounds, round_id), EExecuteBeforeGenesis);
-    table::borrow(&self.rounds, round_id)
-}
-
-public fun get_bet_by_round_id(self: &mut Prediction, round_id: u64, user: address): &Bet {
-    let round = self.get_round_by_id(round_id);
-    round::get_bet(round, user)
+    let round = table::borrow_mut(&mut self.rounds, round_id);
+    round
 }
 
 public fun get_current_round_id(self: &mut Prediction): u64 {
     self.current_round_id
 }
 
+public fun get_round_treasury_fee_amount(round: &Round): u64 {
+    round.treasury_fee_amount
+}
+
+public fun get_round_reward_amount(round: &Round): u64 {
+    round.reward_amount
+}
+
+public fun get_round_reward_base_amount(round: &Round): u64 {
+    round.reward_base_amount
+}
+
+public fun get_round_oracle_called(round: &Round): bool {
+    round.oracle_called
+}
+
+public fun get_round_bet_amount(round: &Round, user: address): u64 {
+    assert!(vec_map::contains(&round.bets, &user), EUserNotBet);
+    let bet = vec_map::get(&round.bets, &user);
+    bet.amount
+}
+
+public fun get_round_bet_direction(round: &Round, user: address): bool {
+    assert!(vec_map::contains(&round.bets, &user), EUserNotBet);
+    let bet = vec_map::get(&round.bets, &user);
+    bet.direction
+}
+
+public fun get_round_bet_claimed(round: &Round, user: address): bool {
+    assert!(vec_map::contains(&round.bets, &user), EUserNotBet);
+    let bet = vec_map::get(&round.bets, &user);
+    bet.claimed
+}
+
+public fun get_user_round_length(self: &mut Prediction, user: address): u64 {
+    if (table::contains(&self.user_round, user)) {
+        let user_rounds = table::borrow(&self.user_round, user);
+        vector::length(user_rounds)
+    } else {
+        0
+    }
+}
+
+public fun get_user_round(
+    self: &mut Prediction,
+    user: address,
+    cursor: u64,
+    size: u64,
+): vector<u64> {
+    let mut result = vector::empty<u64>();
+    if (table::contains(&self.user_round, user)) {
+        let user_rounds = table::borrow(&self.user_round, user);
+        let length = vector::length(user_rounds);
+        let mut i = cursor;
+        while (i < length && i < cursor + size) {
+            vector::push_back(&mut result, *vector::borrow(user_rounds, i));
+            i = i + 1;
+        }
+    };
+    result
+}
+
 // === Test Functions ===
 #[test_only]
-public fun new_otw(_ctx: &mut TxContext): PREDICTION {
-    PREDICTION {}
+public fun new_otw(_ctx: &mut TxContext): DASHBOARD {
+    DASHBOARD {}
 }
 
 #[test_only]

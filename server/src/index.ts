@@ -72,10 +72,11 @@ const getBalance = async () => {
 const saveObjectId = async (txBlock: any) => {
   try {
     const objectChanges = txBlock.objectChanges;
+    console.log(JSON.stringify(objectChanges));
     for (const objectChange of objectChanges) {
       if (
         objectChange.type === 'created' &&
-        objectChange.objectType.includes('round::Round')
+        objectChange.objectType.includes('dashboard::Round')
       ) {
         const objectId = objectChange.objectId;
         await createPrediction(objectId);
@@ -93,7 +94,7 @@ const startGenesis = async () => {
     const tx = new Transaction();
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::prediction::start_genesis`,
+      target: `${PACKAGE_ID}::dashboard::start_genesis`,
       arguments: [
         tx.object(PREDICTION_SYSTEM_ID),
         tx.object(ADMIN_CAP_ID),
@@ -122,7 +123,7 @@ const startGenesis = async () => {
       },
     });
 
-    await saveObjectId(txBlock);
+    saveObjectId(txBlock);
 
     if (txBlock.effects?.status?.status === 'failure') {
       throw new Error(`Transaction failed: ${txBlock.effects.status.error}`);
@@ -160,7 +161,7 @@ const lockGenesis = async () => {
     // console.log(priceInfoObjectIds);
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::prediction::lock_genesis`,
+      target: `${PACKAGE_ID}::dashboard::lock_genesis`,
       arguments: [
         tx.object(PREDICTION_SYSTEM_ID),
         tx.object(ADMIN_CAP_ID),
@@ -188,7 +189,7 @@ const lockGenesis = async () => {
       },
     });
 
-    await saveObjectId(txBlock);
+    saveObjectId(txBlock);
 
     if (txBlock.effects?.status?.status === 'failure') {
       throw new Error(`Transaction failed: ${txBlock.effects.status.error}`);
@@ -224,7 +225,7 @@ const executeRound = async () => {
     );
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::prediction::execute_round`,
+      target: `${PACKAGE_ID}::dashboard::execute_round`,
       arguments: [
         tx.object(PREDICTION_SYSTEM_ID),
         tx.object(ADMIN_CAP_ID),
@@ -253,7 +254,7 @@ const executeRound = async () => {
       },
     });
 
-    await saveObjectId(txBlock);
+    saveObjectId(txBlock);
 
     if (txBlock.effects?.status?.status === 'failure') {
       throw new Error(`Transaction failed: ${txBlock.effects.status.error}`);
@@ -273,7 +274,7 @@ const claimTreasury = async () => {
     const tx = new Transaction();
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::prediction::claim_treasury`,
+      target: `${PACKAGE_ID}::dashboard::claim_treasury`,
       arguments: [tx.object(PREDICTION_SYSTEM_ID), tx.object(ADMIN_CAP_ID)],
     });
 
@@ -330,7 +331,7 @@ const getPriceFromOracle = async () => {
     );
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::prediction::get_price_from_oracle`,
+      target: `${PACKAGE_ID}::dashboard::get_price_from_oracle`,
       arguments: [
         tx.object(ADMIN_CAP_ID),
         tx.object(clockObj),
@@ -376,7 +377,7 @@ const getCurrentRoundId = async () => {
     const tx = new Transaction();
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::prediction::get_current_round_id`,
+      target: `${PACKAGE_ID}::dashboard::get_current_round_id`,
       arguments: [tx.object(PREDICTION_SYSTEM_ID)],
     });
 
@@ -418,7 +419,7 @@ const getCurrentRound = async (roundId: number) => {
     const tx = new Transaction();
 
     tx.moveCall({
-      target: `${PACKAGE_ID}::prediction::get_round`,
+      target: `${PACKAGE_ID}::dashboard::get_round`,
       arguments: [tx.object(PREDICTION_SYSTEM_ID), tx.pure.u64(roundId)],
     });
 

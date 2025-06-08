@@ -38,6 +38,7 @@ const createPrediction = async (objectId: string, roundIdFixed?: number) => {
     }
     const newPrediction = new Prediction({ roundId, objectId });
     const savedPrediction = await newPrediction.save();
+    console.log('savedPrediction', savedPrediction);
     return savedPrediction;
   } catch (error) {
     console.error('Error creating prediction:', error);

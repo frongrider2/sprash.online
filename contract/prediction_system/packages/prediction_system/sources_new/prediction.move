@@ -23,7 +23,7 @@ use sui::vec_map::{Self, VecMap};
 // ===== Constants =====
 const MIN_BET_AMOUNT: u64 = 1_000_000; // 0.001 SUI
 const MAX_BET_AMOUNT: u64 = 100_000_000_000; // 100 SUI
-const ROUND_INTERVAL: u64 = 50 * 1000; // 1 minute in seconds
+const ROUND_INTERVAL: u64 = 60 * 1000; // 1 minute in seconds
 const BUFFER_SECONDS: u64 = 30 * 1000; // 30 seconds buffer for oracle updates
 
 // ===== Errors =====
@@ -56,7 +56,7 @@ const EClaimBeforeEnd: u64 = 25; // claim before start
 const ENotRefundable: u64 = 26;
 
 // ===== Structs =====
-public struct Prediction has key, store {
+public struct Prediction has key {
     id: UID,
     rounds: Table<u64, Round>,
     current_round_id: u64,
@@ -267,11 +267,11 @@ public fun claim(self: &mut Prediction, round_id: u64, clock: &Clock, ctx: &mut 
     let claimable = round::is_bet_claimable(round, sender);
     let refundable = round::is_bet_refundable(round, sender);
     let oracle_called = round::oracle_called(round);
-    
+
     // Get all the reward calculation data before mutable borrow
     let reward_amount_total = round::reward_amount(round);
     let reward_base_amount_total = round::reward_base_amount(round);
-    
+
     let user_bet = round::get_bet_mut(round, sender);
     assert!(!bet::is_claimed(user_bet), EClaimAleady);
     let bet_amount = bet::amount(user_bet);
@@ -558,7 +558,7 @@ public fun get_bettable(self: &mut Prediction, clock: &Clock, round_id: u64): bo
     timestamp < round::lock_time(round)
 }
 
-public fun get_round_mut(self: &mut Prediction, round_id: u64): &mut Round {
+fun get_round_mut(self: &mut Prediction, round_id: u64): &mut Round {
     assert!(table::contains(&self.rounds, round_id), EExecuteBeforeGenesis);
     table::borrow_mut(&mut self.rounds, round_id)
 }
@@ -566,6 +566,11 @@ public fun get_round_mut(self: &mut Prediction, round_id: u64): &mut Round {
 public fun get_round_by_id(self: &mut Prediction, round_id: u64): &Round {
     assert!(table::contains(&self.rounds, round_id), EExecuteBeforeGenesis);
     table::borrow(&self.rounds, round_id)
+}
+
+public fun get_bet_by_round_id(self: &mut Prediction, round_id: u64, user: address): &Bet {
+    let round = self.get_round_by_id(round_id);
+    round::get_bet(round, user)
 }
 
 public fun get_current_round_id(self: &mut Prediction): u64 {
